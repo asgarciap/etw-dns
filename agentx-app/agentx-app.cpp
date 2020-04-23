@@ -12,6 +12,7 @@
 #include <evntcons.h>
 #include <tdh.h>
 #include <in6addr.h>
+#include <signal.h>
 
 #pragma comment(lib, "tdh.lib")
 #pragma comment(lib, "ws2_32.lib")  // For ntohs function
@@ -52,9 +53,11 @@ BOOL g_bUserMode = FALSE;
 
 TRACEHANDLE g_hTrace = 0;
 
+TRACEHANDLE g_SessionHandle = 0;
+EVENT_TRACE_PROPERTIES* g_pSessionProperties = NULL;
 
 // Prototypes
-
+void StartEventTraceConsumer(void);
 void WINAPI ProcessEvent(PEVENT_RECORD pEvent);
 DWORD GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO& pInfo);
 DWORD PrintProperties(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO pInfo, USHORT i, LPWSTR pStructureName, USHORT StructIndex);
@@ -63,11 +66,116 @@ void PrintMapString(PEVENT_MAP_INFO pMapInfo, PBYTE pData);
 DWORD GetArraySize(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO pInfo, USHORT i, PUSHORT ArraySize);
 DWORD GetMapInfo(PEVENT_RECORD pEvent, LPWSTR pMapName, DWORD DecodingSource, PEVENT_MAP_INFO& pMapInfo);
 void RemoveTrailingSpace(PEVENT_MAP_INFO pMapInfo);
+void SignalHandler(int signal);
+typedef void (*SignalHandlerPointer)(int);
 
 typedef LPTSTR(NTAPI* PIPV6ADDRTOSTRING)(
     const IN6_ADDR* Addr,
     LPTSTR S
     );
+
+int wmain(void)
+{
+    ULONG status = ERROR_SUCCESS;
+    ULONG BufferSize = 0;
+    BOOL TraceOn = TRUE;
+
+    // Allocate memory for the session properties. The memory must
+    // be large enough to include the log file name and session name,
+    // which get appended to the end of the session properties structure.
+
+    BufferSize = sizeof(EVENT_TRACE_PROPERTIES) + sizeof(LOGSESSION_NAME);
+    g_pSessionProperties = (EVENT_TRACE_PROPERTIES*)malloc(BufferSize);
+    if (NULL == g_pSessionProperties)
+    {
+        wprintf(L"Unable to allocate %d bytes for properties structure.\n", BufferSize);
+        goto cleanup;
+    }
+
+    // Set the session properties. You only append the log file name
+    // to the properties structure; the StartTrace function appends
+    // the session name for you.
+
+    ZeroMemory(g_pSessionProperties, BufferSize);
+    g_pSessionProperties->Wnode.BufferSize = BufferSize;
+    g_pSessionProperties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
+    g_pSessionProperties->Wnode.ClientContext = 1; //QPC clock resolution
+    g_pSessionProperties->Wnode.Guid = SessionGuid;
+    g_pSessionProperties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
+    g_pSessionProperties->MaximumFileSize = 1;  // 1 MB
+    g_pSessionProperties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
+
+    // Create the trace session.
+
+    status = StartTrace((PTRACEHANDLE)&g_SessionHandle, LOGSESSION_NAME, g_pSessionProperties);
+    if (ERROR_SUCCESS != status)
+    {
+        wprintf(L"StartTrace() failed with %lu\n", status);
+        goto cleanup;
+    }
+    wprintf(L"StartTrace() successed\n");
+
+    // Enable the providers that you want to log events to your session.
+
+    status = EnableTraceEx2(
+        g_SessionHandle,
+        (LPCGUID)&ProviderGuid,
+        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+        TRACE_LEVEL_INFORMATION,
+        0,
+        0,
+        0,
+        NULL
+    );
+
+    if (ERROR_SUCCESS != status)
+    {
+        wprintf(L"EnableTrace() failed with %lu\n", status);
+        TraceOn = FALSE;
+        goto cleanup;
+    }
+    wprintf(L"EnableTrace() successed\n");
+
+    SignalHandlerPointer previousHandler;
+    previousHandler = signal(SIGINT, SignalHandler);
+    previousHandler = signal(SIGTERM, SignalHandler);
+
+    wprintf(L"Starting Event Consumer.\n");
+    StartEventTraceConsumer();
+
+cleanup:
+
+    if (g_SessionHandle)
+    {
+        if (TraceOn)
+        {
+            status = EnableTraceEx2(
+                g_SessionHandle,
+                (LPCGUID)&ProviderGuid,
+                EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+                TRACE_LEVEL_INFORMATION,
+                0,
+                0,
+                0,
+                NULL
+            );
+        }
+
+        status = ControlTrace(g_SessionHandle, LOGSESSION_NAME, g_pSessionProperties, EVENT_TRACE_CONTROL_STOP);
+
+        if (ERROR_SUCCESS != status)
+        {
+            wprintf(L"ControlTrace(stop) failed with %lu\n", status);
+        }
+    }
+
+    if (g_pSessionProperties)
+    {
+        free(g_pSessionProperties);
+        g_pSessionProperties = NULL;
+    }
+    return 0;
+}
 
 void StartEventTraceConsumer(void)
 {
@@ -126,108 +234,6 @@ cleanup:
     {
         status = CloseTrace(g_hTrace);
     }
-}
-
-int wmain(void)
-{
-    ULONG status = ERROR_SUCCESS;
-    TRACEHANDLE SessionHandle = 0;
-    EVENT_TRACE_PROPERTIES* pSessionProperties = NULL;
-    ULONG BufferSize = 0;
-    BOOL TraceOn = TRUE;
-
-    // Allocate memory for the session properties. The memory must
-    // be large enough to include the log file name and session name,
-    // which get appended to the end of the session properties structure.
-
-    BufferSize = sizeof(EVENT_TRACE_PROPERTIES) + sizeof(LOGSESSION_NAME);
-    pSessionProperties = (EVENT_TRACE_PROPERTIES*)malloc(BufferSize);
-    if (NULL == pSessionProperties)
-    {
-        wprintf(L"Unable to allocate %d bytes for properties structure.\n", BufferSize);
-        goto cleanup;
-    }
-
-    // Set the session properties. You only append the log file name
-    // to the properties structure; the StartTrace function appends
-    // the session name for you.
-
-    ZeroMemory(pSessionProperties, BufferSize);
-    pSessionProperties->Wnode.BufferSize = BufferSize;
-    pSessionProperties->Wnode.Flags = WNODE_FLAG_TRACED_GUID;
-    pSessionProperties->Wnode.ClientContext = 1; //QPC clock resolution
-    pSessionProperties->Wnode.Guid = SessionGuid;
-    pSessionProperties->LogFileMode = EVENT_TRACE_REAL_TIME_MODE;
-    pSessionProperties->MaximumFileSize = 1;  // 1 MB
-    pSessionProperties->LoggerNameOffset = sizeof(EVENT_TRACE_PROPERTIES);
-
-    // Create the trace session.
-
-    status = StartTrace((PTRACEHANDLE)&SessionHandle, LOGSESSION_NAME, pSessionProperties);
-    if (ERROR_SUCCESS != status)
-    {
-        wprintf(L"StartTrace() failed with %lu\n", status);
-        goto cleanup;
-    }
-    wprintf(L"StartTrace() successed\n");
-
-    // Enable the providers that you want to log events to your session.
-
-    status = EnableTraceEx2(
-        SessionHandle,
-        (LPCGUID)&ProviderGuid,
-        EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-        TRACE_LEVEL_INFORMATION,
-        0,
-        0,
-        0,
-        NULL
-    );
-
-    if (ERROR_SUCCESS != status)
-    {
-        wprintf(L"EnableTrace() failed with %lu\n", status);
-        TraceOn = FALSE;
-        goto cleanup;
-    }
-    wprintf(L"EnableTrace() successed\n");
-
-    wprintf(L"Starting Event Consumer.\n");
-    StartEventTraceConsumer();
-
-cleanup:
-
-    if (SessionHandle)
-    {
-        if (TraceOn)
-        {
-            status = EnableTraceEx2(
-                SessionHandle,
-                (LPCGUID)&ProviderGuid,
-                EVENT_CONTROL_CODE_DISABLE_PROVIDER,
-                TRACE_LEVEL_INFORMATION,
-                0,
-                0,
-                0,
-                NULL
-            );
-        }
-
-        status = ControlTrace(SessionHandle, LOGSESSION_NAME, pSessionProperties, EVENT_TRACE_CONTROL_STOP);
-
-        if (ERROR_SUCCESS != status)
-        {
-            wprintf(L"ControlTrace(stop) failed with %lu\n", status);
-        }
-    }
-
-    if (pSessionProperties)
-    {
-        free(pSessionProperties);
-        pSessionProperties = NULL;
-    }
-    getwchar();
-    return 0;
 }
 
 // Callback that receives the events. 
@@ -1105,4 +1111,40 @@ DWORD GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO& pInfo)
 cleanup:
 
     return status;
+}
+
+void SignalHandler(int signal)
+{
+    DWORD status = ERROR_SUCCESS;
+    wprintf(L"Signal received. Terminating Trace Session and ending process.\n");
+    if(g_SessionHandle)
+    {
+        TRACEHANDLE SessionHandle = g_SessionHandle;
+        g_SessionHandle = 0;
+        status = EnableTraceEx2(
+            SessionHandle,
+            (LPCGUID)&ProviderGuid,
+            EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+            TRACE_LEVEL_INFORMATION,
+            0,
+            0,
+            0,
+            NULL
+        );
+
+        status = ControlTrace(SessionHandle, LOGSESSION_NAME, g_pSessionProperties, EVENT_TRACE_CONTROL_STOP);
+
+        if (ERROR_SUCCESS != status)
+        {
+            wprintf(L"ControlTrace(stop) failed with %lu\n", status);
+        }
+    }
+
+    if (g_pSessionProperties)
+    {
+        EVENT_TRACE_PROPERTIES* pSessionProperties = g_pSessionProperties;
+        g_pSessionProperties = NULL;
+        free(pSessionProperties);
+        pSessionProperties = NULL;
+    }
 }
