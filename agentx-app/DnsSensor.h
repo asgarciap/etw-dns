@@ -3,12 +3,11 @@
 #include <map>
 #include <mutex>
 
-typedef std::map<std::wstring, UINT64> DomainCounterMap;
-typedef std::map<ULONG, UINT64> ProcessCounterMap;
+typedef std::map<std::wstring, UINT64> WStringCounterMap;
 struct DnsStats
 {
-    DomainCounterMap DomainCounter;
-    ProcessCounterMap ProcessCounter;
+    WStringCounterMap DomainCounter;
+    WStringCounterMap ProcessCounter;
     UINT64 TotalQueries;
 };
 
@@ -23,4 +22,6 @@ private:
     std::mutex _Lock;
 protected:
     virtual void eventReceived(PEVENT_RECORD evt);
+private:
+    std::wstring getProcessName(ULONG pid);
 };

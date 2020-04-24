@@ -31,6 +31,10 @@ int wmain(void)
         Sleep(1000);
     }
     sensor.stop();
+
+    //print the last report before exit
+    wprintf(L"%s", sensor.getInfo().data());
+
     return 0;
 }
 

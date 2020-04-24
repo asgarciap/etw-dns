@@ -2,6 +2,9 @@
 #include <set>
 #include <algorithm>
 #include <functional>
+#include <psapi.h>
+
+#pragma comment(lib, "psapi.lib")
 
 static const GUID DNSClientProviderGuid =
 { 0x1C95126E, 0x7EEA, 0x49A9, {0xA3, 0xFE, 0xA3, 0x78, 0xB0, 0x3D, 0xDB, 0x4D } };
@@ -24,8 +27,9 @@ void DnsSensor::eventReceived(PEVENT_RECORD evt)
         _Stats.TotalQueries++;
         std::wstring domain;
         domain.assign((LPWSTR)value);
+        std::wstring process(getProcessName(evt->EventHeader.ProcessId));
         _Stats.DomainCounter[domain]++;
-        _Stats.ProcessCounter[evt->EventHeader.ProcessId]++;
+        _Stats.ProcessCounter[process]++;
         wprintf(L"QueryName: %s\n", (LPWSTR) value);
         free(value);
     }
@@ -35,6 +39,22 @@ void DnsSensor::eventReceived(PEVENT_RECORD evt)
         wprintf(L"QueryType: %d\n", *(PBYTE) value);
         free(value);
     }
+}
+
+std::wstring DnsSensor::getProcessName(ULONG pid)
+{
+    HANDLE h = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (h)
+    {
+        TCHAR Buffer[MAX_PATH];
+        GetModuleFileNameEx(h, 0, Buffer, MAX_PATH);
+        CloseHandle(h);
+        std::wstring name;
+        wchar_t* moduleNameOnly = wcsrchr(Buffer, L'\\') + 1;
+        name.assign(moduleNameOnly);
+        return name;
+    }
+    return L"[PID: "+std::to_wstring(pid)+L"]";
 }
 
 std::wstring DnsSensor::getInfo()
@@ -72,23 +92,13 @@ std::wstring DnsSensor::getInfo()
     }
 
     info.append(L"\tTOP Most Active Process:\n");
-
-    typedef std::function<bool(std::pair<ULONG, UINT64>, std::pair<ULONG, UINT64>)> ComparatorB;
-    ComparatorB compFunctorB =
-        [](std::pair<ULONG, UINT64> elem1, std::pair<ULONG, UINT64> elem2)
-    {
-        if(elem1.second != elem2.second)
-            return elem1.second > elem2.second;
-
-        return elem1.first > elem2.first;
-    };
-    std::set<std::pair<ULONG, UINT64>, ComparatorB> topProcess(
-        _Stats.ProcessCounter.begin(), _Stats.ProcessCounter.end(), compFunctorB);
+    std::set<std::pair<std::wstring, UINT64>, Comparator> topProcess(
+        _Stats.ProcessCounter.begin(), _Stats.ProcessCounter.end(), compFunctor);
     USHORT k = 0;
-    for (std::pair<ULONG, UINT64> process : topProcess)
+    for (std::pair<std::wstring, UINT64> process : topProcess)
     {
         info.append(L"\t\t");
-        info.append(std::to_wstring(process.first));
+        info.append(process.first);
         info.append(L" : " + std::to_wstring(process.second) + L"\n");
         k++;
         if (k == 10) break;
