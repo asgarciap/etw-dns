@@ -1,8 +1,7 @@
 #pragma once
+#include "Logger.h"
 #include <string>
 #include <mutex>
-
-using namespace std;
 
 //Base class to represent a sensor from Agentx
 //A sensor is an object that collects information
@@ -12,6 +11,8 @@ class AgentSensor
 protected:
     std::wstring _Name;
     std::thread _ThreadId;
+    Logger* _SystemLogger;
+    Logger* _AuditLogger;
 protected:
     virtual bool init() = 0;
     virtual void runSensor() = 0;
@@ -21,5 +22,9 @@ public:
     virtual bool start();
     virtual void stop();
     bool isRunning();
+    void setSystemLogger(Logger* logger);
+    void setAuditLogger(Logger* logger);
+    Logger* getSystemLogger();
+    Logger* getAuditLogger();
     virtual std::wstring getInfo() = 0;
 };

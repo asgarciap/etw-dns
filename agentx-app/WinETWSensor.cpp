@@ -34,7 +34,7 @@ WinETWSensor::~WinETWSensor()
 
         if (ERROR_SUCCESS != status)
         {
-            wprintf(L"ControlTrace(stop) failed with %lu\n", status);
+            _SystemLogger->log(ERR, "Error %d when stoping event trace.", status);
         }
     }
 
@@ -58,7 +58,7 @@ bool WinETWSensor::init()
     _SessionProperties = (EVENT_TRACE_PROPERTIES*)malloc(BufferSize);
     if (NULL == _SessionProperties)
     {
-        wprintf(L"Unable to allocate %d bytes for properties structure.\n", BufferSize);
+        _SystemLogger->log(ERR, "Unable to allocate %d bytes for properties structure", BufferSize);
         return false;
     }
 
@@ -80,10 +80,11 @@ bool WinETWSensor::init()
     status = StartTrace((PTRACEHANDLE)&_SessionTraceHandle, LOGSESSION_NAME, _SessionProperties);
     if (ERROR_SUCCESS != status)
     {
-        wprintf(L"StartTrace() failed with %lu\n", status);
+        _SystemLogger->log(ERR, "Error %d when starting event trace session", status);
         return false;
     }
-    wprintf(L"StartTrace() successed\n");
+
+    _SystemLogger->log(INF, "Event trace session succesfully started");
 
     // Enable the providers that you want to log events to your session.
 
@@ -100,11 +101,11 @@ bool WinETWSensor::init()
 
     if (ERROR_SUCCESS != status)
     {
-        wprintf(L"EnableTrace() failed with %lu\n", status);
+        _SystemLogger->log(ERR, "Error %d when trying to enable provider on event trace session", status);
         _TraceOn = false;
         return false;
     }
-    wprintf(L"EnableTrace() successed\n");
+    _SystemLogger->log(INF, "Event provider succesfully enabled in event trace session.");
     _TraceOn = true;
     return true;
 }
@@ -130,7 +131,7 @@ void WinETWSensor::runSensor()
         hTrace = OpenTrace(&trace);
         if (INVALID_PROCESSTRACE_HANDLE == hTrace)
         {
-            wprintf(L"OpenTrace failed with %lu\n", GetLastError());
+            _SystemLogger->log(ERR, "Error %d when trying to open trace event session to consume events.",GetLastError());
             goto cleanup;
         }
 
@@ -149,7 +150,7 @@ void WinETWSensor::runSensor()
         status = ProcessTrace(&hTrace, 1, 0, 0);
         if (status != ERROR_SUCCESS && status != ERROR_CANCELLED)
         {
-            wprintf(L"ProcessTrace failed with %lu\n", status);
+            _SystemLogger->log(ERR, "Error %d when consuming events from trace session.",status);
             goto cleanup;
         }
 
@@ -164,7 +165,6 @@ void WinETWSensor::runSensor()
 void WinETWSensor::stopSensor()
 {
     DWORD status = ERROR_SUCCESS;
-    wprintf(L"Stopping %s Sensor. Terminating Trace Session.\n",_Name.data());
     if (_SessionTraceHandle)
     {
         TRACEHANDLE SessionHandle = _SessionTraceHandle;
@@ -184,7 +184,7 @@ void WinETWSensor::stopSensor()
 
         if (ERROR_SUCCESS != status)
         {
-            wprintf(L"ControlTrace(stop) failed with %lu\n", status);
+            _SystemLogger->log(ERR, "Error %d when stpping event trace session.", status);
         }
     }
 
@@ -207,6 +207,7 @@ VOID WINAPI WinETWSensor::ProcessEvent(PEVENT_RECORD pEvent)
     SYSTEMTIME st;
     SYSTEMTIME stLocal;
     FILETIME ft;
+    WinETWSensor* agent = (WinETWSensor*) pEvent->UserContext;
 
     // Skips the event if it is the event trace header. Log files contain this event
     // but real-time sessions do not. The event contains the same information as 
@@ -223,11 +224,11 @@ VOID WINAPI WinETWSensor::ProcessEvent(PEVENT_RECORD pEvent)
         // Process the event. The pEvent->UserData member is a pointer to 
         // the event specific data, if it exists.
 
-        status = WinETWSensor::GetEventInformation(pEvent, pInfo);
+        status = agent->GetEventInformation(pEvent, pInfo);
 
         if (ERROR_SUCCESS != status)
         {
-            wprintf(L"GetEventInformation failed with %lu\n", status);
+            agent->getSystemLogger()->log(ERR, "Error %d when trying to get event informacion.", status);
             goto cleanup;
         }
 
@@ -241,21 +242,21 @@ VOID WINAPI WinETWSensor::ProcessEvent(PEVENT_RECORD pEvent)
 
             if (FAILED(hr))
             {
-                wprintf(L"StringFromCLSID failed with 0x%x\n", hr);
+                agent->getSystemLogger()->log(ERR, "Error when trying to get class. StringFromCLSID failed with error 0x%x", hr);
                 status = hr;
                 goto cleanup;
             }
-
-            wprintf(L"\nEvent GUID: %s\n", pwsEventGuid);
+            
+            agent->getSystemLogger()->log(DBG, "Event GUID: %s", pwsEventGuid);
             CoTaskMemFree(pwsEventGuid);
             pwsEventGuid = NULL;
 
-            wprintf(L"Event version: %d\n", pEvent->EventHeader.EventDescriptor.Version);
-            wprintf(L"Event type: %d\n", pEvent->EventHeader.EventDescriptor.Opcode);
+            agent->getSystemLogger()->log(DBG, "Event version: %d", pEvent->EventHeader.EventDescriptor.Version);
+            agent->getSystemLogger()->log(DBG, "Event type: %d", pEvent->EventHeader.EventDescriptor.Opcode);
         }
         else if (DecodingSourceXMLFile == pInfo->DecodingSource) // Instrumentation manifest
         {
-            wprintf(L"Event ID: %d\n", pInfo->EventDescriptor.Id);
+            agent->getSystemLogger()->log(DBG, "Event ID: %d", pInfo->EventDescriptor.Id);
         }
         else // Not handling the WPP case
         {
@@ -273,19 +274,18 @@ VOID WINAPI WinETWSensor::ProcessEvent(PEVENT_RECORD pEvent)
         TimeStamp = pEvent->EventHeader.TimeStamp.QuadPart;
         Nanoseconds = (TimeStamp % 10000000) * 100;
 
-        wprintf(L"%02d/%02d/%02d %02d:%02d:%02d.%I64u\n",
+        agent->getSystemLogger()->log(DBG, "Event Time: %02d/%02d/%02d %02d:%02d:%02d.%I64u", 
             stLocal.wMonth, stLocal.wDay, stLocal.wYear, stLocal.wHour, stLocal.wMinute, stLocal.wSecond, Nanoseconds);
 
         if (EVENT_HEADER_FLAG_STRING_ONLY == (pEvent->EventHeader.Flags & EVENT_HEADER_FLAG_STRING_ONLY))
         {
             // The Event doesnt have any property. Print it for debugging purposes.
-            wprintf(L"%s\n", (LPWSTR)pEvent->UserData);
+            agent->getSystemLogger()->log(DBG, "Received event without properties. %s", (LPWSTR)pEvent->UserData);
         }
         else
         {
             // Call the eventReceived function to inform that an event have been received.
-            WinETWSensor *obj = (WinETWSensor*) pEvent->UserContext;
-            obj->eventReceived(pEvent);
+            agent->eventReceived(pEvent);
             goto cleanup;
         }
     }
@@ -315,7 +315,7 @@ BOOL WinETWSensor::getPropertyValue(PEVENT_RECORD evt, LPWSTR prop, PBYTE *pData
 
     if (ERROR_SUCCESS != status)
     {
-        wprintf(L"TdhGetPropertySize failed with %lu\n", status);
+        _SystemLogger->log(ERR, "Error %d when trying to get property size.", status);
         return FALSE;
     }
 
@@ -323,7 +323,7 @@ BOOL WinETWSensor::getPropertyValue(PEVENT_RECORD evt, LPWSTR prop, PBYTE *pData
 
     if (NULL == *pData)
     {
-        wprintf(L"Failed to allocate memory for property data\n");
+        _SystemLogger->log(ERR, "Error when trying allocate %d size of memory for property data.", PropertySize);
         status = ERROR_OUTOFMEMORY;
         return FALSE;
     }
@@ -332,7 +332,7 @@ BOOL WinETWSensor::getPropertyValue(PEVENT_RECORD evt, LPWSTR prop, PBYTE *pData
 
     if (ERROR_SUCCESS != status)
     {
-        wprintf(L"TdhGetProperty failed with %lu\n", status);
+        _SystemLogger->log(ERR, "Error %d when trying to get property %s from event.", status, prop);
         if (*pData)
         {
             free(*pData);
@@ -359,7 +359,7 @@ DWORD WinETWSensor::GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO&
         pInfo = (TRACE_EVENT_INFO*)malloc(BufferSize);
         if (pInfo == NULL)
         {
-            wprintf(L"Failed to allocate memory for event info (size=%lu).\n", BufferSize);
+            _SystemLogger->log(ERR, "Error when trying allocate %d size of memory for event info.", BufferSize);
             status = ERROR_OUTOFMEMORY;
             goto cleanup;
         }
@@ -371,7 +371,7 @@ DWORD WinETWSensor::GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO&
 
     if (ERROR_SUCCESS != status)
     {
-        wprintf(L"TdhGetEventInformation failed with 0x%x.\n", status);
+        _SystemLogger->log(ERR, "Error %d when trying to get event info.", status);
     }
 
 cleanup:

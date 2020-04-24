@@ -7,19 +7,27 @@
 #include "Logger.h"
 
 BOOL g_Run = TRUE;
+Logger g_systemLog;
 
 void SignalHandler(int signal);
 typedef void (*SignalHandlerPointer)(int);
 
 int wmain(void)
 {
-    Logger systemLog;
-    systemLog.addLoggerChannel(new ConsoleLoggerChannel());
-    systemLog.addLoggerChannel(new FileLoggerChannel("agentx.log"));
-    systemLog.setLogLevel(DBG);
-    systemLog.log(DBG, "Starting Agentx Application");
+    g_systemLog.addLoggerChannel(new ConsoleLoggerChannel());
+    g_systemLog.addLoggerChannel(new FileLoggerChannel("agentx.log"));
+    g_systemLog.setLogLevel(DBG);
+
+    g_systemLog.log(INF, "Starting Agentx Application");
+
+    Logger auditLog;
+    auditLog.setLogLevel(ADT);
+    auditLog.addLoggerChannel(new FileLoggerChannel("audit.log"));
 
     DnsSensor sensor;
+    sensor.setAuditLogger(&auditLog);
+    sensor.setSystemLogger(&g_systemLog);
+
     sensor.start();
 
     SignalHandlerPointer previousHandler;
@@ -32,6 +40,7 @@ int wmain(void)
     {
         if ((time(NULL) - lastUpdate) > printInfoFreq)
         {
+            //TODO sent info to a separate file
             wprintf(L"%s", sensor.getInfo().data());
             lastUpdate = time(NULL);
         }
@@ -42,11 +51,12 @@ int wmain(void)
     //print the last report before exit
     wprintf(L"%s", sensor.getInfo().data());
 
+    g_systemLog.log(INF, "Agentx stopped");
     return 0;
 }
 
 void SignalHandler(int signal)
 {
-    wprintf(L"Signal received. Terminating process.\n");
+    g_systemLog.log(INF, "Signal received. Terminating process");
     g_Run = FALSE;
 }
