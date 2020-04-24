@@ -21,5 +21,5 @@ public:
     virtual bool start();
     virtual void stop();
     bool isRunning();
-    virtual std::string getInfo() = 0;
+    virtual std::wstring getInfo() = 0;
 };

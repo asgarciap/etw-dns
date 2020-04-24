@@ -19,8 +19,15 @@ int wmain(void)
     previousHandler = signal(SIGINT, SignalHandler);
     previousHandler = signal(SIGTERM, SignalHandler);
 
+    time_t lastUpdate = time(NULL);
+    int printInfoFreq = 5;
     while (g_Run)
     {
+        if ((time(NULL) - lastUpdate) > printInfoFreq)
+        {
+            wprintf(L"%s", sensor.getInfo().data());
+            lastUpdate = time(NULL);
+        }
         Sleep(1000);
     }
     sensor.stop();

@@ -1,11 +1,16 @@
 #include "DnsSensor.h"
+#include <set>
+#include <algorithm>
+#include <functional>
 
 static const GUID DNSClientProviderGuid =
 { 0x1C95126E, 0x7EEA, 0x49A9, {0xA3, 0xFE, 0xA3, 0x78, 0xB0, 0x3D, 0xDB, 0x4D } };
 
 DnsSensor::DnsSensor() : WinETWSensor((LPWSTR) L"Microsoft-Windows-DNS-Client", DNSClientProviderGuid)
 {
-
+    _Stats.DomainCounter.clear();
+    _Stats.ProcessCounter.clear();
+    _Stats.TotalQueries = 0;
 }
 
 void DnsSensor::eventReceived(PEVENT_RECORD evt)
@@ -15,6 +20,12 @@ void DnsSensor::eventReceived(PEVENT_RECORD evt)
     PBYTE value = NULL;
     if (getPropertyValue(evt, (LPWSTR)L"QueryName", &value))
     {
+        std::unique_lock<std::mutex> lock(_Lock);
+        _Stats.TotalQueries++;
+        std::wstring domain;
+        domain.assign((LPWSTR)value);
+        _Stats.DomainCounter[domain]++;
+        _Stats.ProcessCounter[evt->EventHeader.ProcessId]++;
         wprintf(L"QueryName: %s\n", (LPWSTR) value);
         free(value);
     }
@@ -26,7 +37,63 @@ void DnsSensor::eventReceived(PEVENT_RECORD evt)
     }
 }
 
-std::string DnsSensor::getInfo()
+std::wstring DnsSensor::getInfo()
 {
-    return "";
+    std::unique_lock<std::mutex> lock(_Lock);
+    std::wstring info;
+    info = L"DNS Sensor Info\n";
+    info.append(L"{\n");
+    info.append(L"\tTotal Queries Received: "+std::to_wstring(_Stats.TotalQueries) + L"\n");
+    info.append(L"\tTotal Process Generating Queries: " + std::to_wstring(_Stats.ProcessCounter.size()) + L"\n");
+    info.append(L"\tTOP Most Queried Domains:\n");
+
+    // Sort DomainCounter Map
+    // Stolen from here: https://thispointer.com/how-to-sort-a-map-by-value-in-c/
+    // TODO improves sorting mechanism
+    typedef std::function<bool(std::pair<std::wstring, UINT64>, std::pair<std::wstring, UINT64>)> Comparator;
+    Comparator compFunctor =
+        [](std::pair<std::wstring, UINT64> elem1, std::pair<std::wstring, UINT64> elem2)
+    {
+        if(elem1.second != elem2.second)
+            return elem1.second > elem2.second;
+
+        return elem1.first > elem2.first;
+    };
+    std::set<std::pair<std::wstring, UINT64>, Comparator> topDomains(
+        _Stats.DomainCounter.begin(), _Stats.DomainCounter.end(), compFunctor);
+    USHORT i = 0;
+    for (std::pair<std::wstring, UINT64> domain : topDomains)
+    {
+        info.append(L"\t\t");
+        info.append(domain.first);
+        info.append(L" : " + std::to_wstring(domain.second) + L"\n");
+        i++;
+        if (i == 10) break;
+    }
+
+    info.append(L"\tTOP Most Active Process:\n");
+
+    typedef std::function<bool(std::pair<ULONG, UINT64>, std::pair<ULONG, UINT64>)> ComparatorB;
+    ComparatorB compFunctorB =
+        [](std::pair<ULONG, UINT64> elem1, std::pair<ULONG, UINT64> elem2)
+    {
+        if(elem1.second != elem2.second)
+            return elem1.second > elem2.second;
+
+        return elem1.first > elem2.first;
+    };
+    std::set<std::pair<ULONG, UINT64>, ComparatorB> topProcess(
+        _Stats.ProcessCounter.begin(), _Stats.ProcessCounter.end(), compFunctorB);
+    USHORT k = 0;
+    for (std::pair<ULONG, UINT64> process : topProcess)
+    {
+        info.append(L"\t\t");
+        info.append(std::to_wstring(process.first));
+        info.append(L" : " + std::to_wstring(process.second) + L"\n");
+        k++;
+        if (k == 10) break;
+    }
+
+    info.append(L"}\n");
+    return info;
 }

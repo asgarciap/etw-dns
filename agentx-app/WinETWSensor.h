@@ -36,4 +36,3 @@ public:
     static VOID WINAPI ProcessEvent(PEVENT_RECORD pEvent);
     static DWORD GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO& pInfo);
 };
-
