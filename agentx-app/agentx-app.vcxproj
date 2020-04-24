@@ -147,7 +147,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AgentSensor.cpp" />
     <ClCompile Include="agentx-app.cpp" />
+    <ClCompile Include="DnsSensor.cpp" />
+    <ClCompile Include="WinETWSensor.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AgentSensor.h" />
+    <ClInclude Include="DnsSensor.h" />
+    <ClInclude Include="WinETWSensor.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
