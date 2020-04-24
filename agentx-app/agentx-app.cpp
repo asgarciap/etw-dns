@@ -4,6 +4,7 @@
 
 #include <signal.h>
 #include "DnsSensor.h"
+#include "Logger.h"
 
 BOOL g_Run = TRUE;
 
@@ -12,6 +13,12 @@ typedef void (*SignalHandlerPointer)(int);
 
 int wmain(void)
 {
+    Logger systemLog;
+    systemLog.addLoggerChannel(new ConsoleLoggerChannel());
+    systemLog.addLoggerChannel(new FileLoggerChannel("agentx.log"));
+    systemLog.setLogLevel(DBG);
+    systemLog.log(DBG, "Starting Agentx Application");
+
     DnsSensor sensor;
     sensor.start();
 
