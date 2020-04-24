@@ -84,7 +84,10 @@ std::wstring DnsSensor::getInfo()
     USHORT i = 0;
     for (std::pair<std::wstring, UINT64> domain : topDomains)
     {
+        long double fraction = _Stats.TotalQueries > 0.f ? (long double)domain.second / (long double)_Stats.TotalQueries : 0.0f;
+        int perct = fraction * 100;
         info.append(L"\t\t");
+        info.append(std::to_wstring(perct)+L"% - ");
         info.append(domain.first);
         info.append(L" : " + std::to_wstring(domain.second) + L"\n");
         i++;
@@ -97,7 +100,10 @@ std::wstring DnsSensor::getInfo()
     USHORT k = 0;
     for (std::pair<std::wstring, UINT64> process : topProcess)
     {
+        long double fraction = _Stats.TotalQueries > 0.f ? (long double)process.second / (long double)_Stats.TotalQueries : 0.0f;
+        int perct = fraction * 100;
         info.append(L"\t\t");
+        info.append(std::to_wstring(perct) + L"% - ");
         info.append(process.first);
         info.append(L" : " + std::to_wstring(process.second) + L"\n");
         k++;
