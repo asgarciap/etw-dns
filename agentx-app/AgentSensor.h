@@ -19,6 +19,7 @@ protected:
     virtual void stopSensor() = 0;
 public:
     AgentSensor();
+    virtual ~AgentSensor() = default;
     virtual bool start();
     virtual void stop();
     bool isRunning();

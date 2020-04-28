@@ -13,6 +13,8 @@ typedef enum
 
 class LoggerChannel
 {
+public:
+    virtual ~LoggerChannel() = default;
 protected:
     virtual void logMessage(const char* str) = 0;
     friend class Logger;
@@ -24,13 +26,15 @@ private:
     std::ofstream _LogFile;
 public:
     FileLoggerChannel(const char* logfile);
-    ~FileLoggerChannel();
+    virtual ~FileLoggerChannel();
 protected:
     virtual void logMessage(const char* str);
 };
 
 class ConsoleLoggerChannel : public LoggerChannel
 {
+public:
+    virtual ~ConsoleLoggerChannel() = default;
 protected:
     virtual void logMessage(const char* str);
 };
@@ -42,7 +46,7 @@ private:
     LogLevel _LogLevel;
     std::vector<LoggerChannel*> _LoggerChannels;
 public:
-    ~Logger();
+    virtual ~Logger();
     void setLogLevel(LogLevel level);
     void addLoggerChannel(LoggerChannel* logger);
     void log(LogLevel level, const char* fmt, ...);

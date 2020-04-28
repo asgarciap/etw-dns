@@ -16,6 +16,7 @@ class DnsSensor : public WinETWSensor
 {
 public:
     DnsSensor();
+    virtual ~DnsSensor() = default;
     virtual std::wstring getInfo();
 private:
     DnsStats _Stats;

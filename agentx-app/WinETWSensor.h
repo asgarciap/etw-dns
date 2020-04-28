@@ -32,7 +32,7 @@ protected:
     BOOL getPropertyValue(PEVENT_RECORD evt, LPWSTR prop, PBYTE *pData);
 public:
     WinETWSensor(LPWSTR name, GUID guid);
-    ~WinETWSensor();
+    virtual ~WinETWSensor();
     static VOID WINAPI ProcessEvent(PEVENT_RECORD pEvent);
     DWORD GetEventInformation(PEVENT_RECORD pEvent, PTRACE_EVENT_INFO& pInfo);
 };

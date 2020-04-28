@@ -5,6 +5,7 @@
 #include <psapi.h>
 #include <locale>
 #include <codecvt>
+#include <sstream>
 
 #pragma comment(lib, "psapi.lib")
 
@@ -69,6 +70,7 @@ std::wstring DnsSensor::getInfo()
     info.append(L"\tTotal Process Generating Queries: " + std::to_wstring(_Stats.ProcessCounter.size()) + L"\n");
     info.append(L"\tTOP Most Queried Domains:\n");
 
+
     // Sort DomainCounter Map
     // Stolen from here: https://thispointer.com/how-to-sort-a-map-by-value-in-c/
     // TODO improves sorting mechanism
@@ -86,10 +88,15 @@ std::wstring DnsSensor::getInfo()
     USHORT i = 0;
     for (std::pair<std::wstring, UINT64> domain : topDomains)
     {
-        long double fraction = _Stats.TotalQueries > 0.f ? (long double)domain.second / (long double)_Stats.TotalQueries : 0.0f;
-        int perct = fraction * 100;
+        float fraction = _Stats.TotalQueries > 0.f ? (float)domain.second / (float)_Stats.TotalQueries : 0.0f;
+        float perct = (float) fraction * 100;
+        std::ostringstream f;
+        f.precision(2);
+        f << std::fixed << perct;
+        typedef std::codecvt_utf8<wchar_t> convert_type;
+        std::wstring_convert<convert_type, wchar_t> converter;
         info.append(L"\t\t");
-        info.append(std::to_wstring(perct)+L"% - ");
+        info.append(converter.from_bytes(f.str()) +L"% - ");
         info.append(domain.first);
         info.append(L" : " + std::to_wstring(domain.second) + L"\n");
         i++;
@@ -102,10 +109,15 @@ std::wstring DnsSensor::getInfo()
     USHORT k = 0;
     for (std::pair<std::wstring, UINT64> process : topProcess)
     {
-        long double fraction = _Stats.TotalQueries > 0.f ? (long double)process.second / (long double)_Stats.TotalQueries : 0.0f;
-        int perct = fraction * 100;
+        float fraction = _Stats.TotalQueries > 0.f ? (float)process.second / (float)_Stats.TotalQueries : 0.0f;
+        float perct = (float) fraction * 100;
+        std::ostringstream f;
+        f.precision(2);
+        f << std::fixed << perct;
+        typedef std::codecvt_utf8<wchar_t> convert_type;
+        std::wstring_convert<convert_type, wchar_t> converter;
         info.append(L"\t\t");
-        info.append(std::to_wstring(perct) + L"% - ");
+        info.append(converter.from_bytes(f.str()) + L"% - ");
         info.append(process.first);
         info.append(L" : " + std::to_wstring(process.second) + L"\n");
         k++;
