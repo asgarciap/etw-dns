@@ -28,28 +28,31 @@ int wmain(void)
     sensor.setAuditLogger(&auditLog);
     sensor.setSystemLogger(&g_systemLog);
 
-    sensor.start();
+    bool started = sensor.start();
 
-    SignalHandlerPointer previousHandler;
-    previousHandler = signal(SIGINT, SignalHandler);
-    previousHandler = signal(SIGTERM, SignalHandler);
-
-    time_t lastUpdate = time(NULL);
-    int printInfoFreq = 5;
-    while (g_Run)
+    if(started)
     {
-        if ((time(NULL) - lastUpdate) > printInfoFreq)
-        {
-            //TODO sent info to a separate file
-            wprintf(L"%s", sensor.getInfo().data());
-            lastUpdate = time(NULL);
-        }
-        Sleep(1000);
-    }
-    sensor.stop();
+        SignalHandlerPointer previousHandler;
+        previousHandler = signal(SIGINT, SignalHandler);
+        previousHandler = signal(SIGTERM, SignalHandler);
 
-    //print the last report before exit
-    wprintf(L"%s", sensor.getInfo().data());
+        time_t lastUpdate = time(NULL);
+        int printInfoFreq = 5;
+        while (g_Run)
+        {
+            if ((time(NULL) - lastUpdate) > printInfoFreq)
+            {
+                //TODO sent info to a separate file
+                wprintf(L"%s", sensor.getInfo().data());
+                lastUpdate = time(NULL);
+            }
+            Sleep(1000);
+        }
+        sensor.stop();
+
+        //print the last report before exit
+        wprintf(L"%s", sensor.getInfo().data());
+    }
 
     g_systemLog.log(INF, "Agentx stopped");
     return 0;
