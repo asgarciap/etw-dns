@@ -57,6 +57,10 @@ std::wstring DnsSensor::getProcessName(ULONG pid)
         name.assign(moduleNameOnly);
         return name;
     }
+    else
+    {
+        _SystemLogger->log(ERR, "Couldn't get process information for PID: %ld. Error: %d", pid, GetLastError());
+    }
     return L"[PID: "+std::to_wstring(pid)+L"]";
 }
 

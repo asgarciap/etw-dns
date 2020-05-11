@@ -1,12 +1,12 @@
-# agentx
+# etw-dns
 Simple Windows console application that listen for DNS resolutions events using the [ETW Win32 API](https://docs.microsoft.com/en-us/windows/win32/etw/event-tracing-portal).
 
 The application opens a real time event session and register to the Microsoft-Windows-DNS-Client providers to wait for DNS related events.
-It generates two log files `agentx.log` with application specific logs and `audit.log` where it write every query performed in the OS.
+It generates two log files `app.log` with application specific logs and `audit.log` where it write every query performed in the OS.
 
 It also store some statistics and print them out to stdout every 5 seconds and when finishing the application, with a summary of the total queries intercepted, the top 10 most resolved domains and the top 10 most active process resolving DNS queries.
 
-## agentx.log output example
+## app.log output example
 ```
 [INFO][2020-04-24.13:54:53] - Starting Agentx Application
 [INFO][2020-04-24.13:54:53] - Starting Microsoft-Windows-DNS-Client sensor

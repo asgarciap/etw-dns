@@ -22,8 +22,9 @@
     <VCProjectVersion>16.0</VCProjectVersion>
     <ProjectGuid>{AFC59FF8-3712-497F-8146-57F8A1FE57B7}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>agentxapp</RootNamespace>
+    <RootNamespace>etwdnsapp</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>etw-dns-app</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -148,7 +149,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AgentSensor.cpp" />
-    <ClCompile Include="agentx-app.cpp" />
+    <ClCompile Include="etw-dns-app.cpp" />
     <ClCompile Include="DnsSensor.cpp" />
     <ClCompile Include="Logger.cpp" />
     <ClCompile Include="WinETWSensor.cpp" />

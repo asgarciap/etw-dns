@@ -1,4 +1,5 @@
-// agentx-app.cpp : This file contains the 'main' function. Program execution begins and ends there.
+// etw-dns-app.cpp : This file contains the 'main' function. Program execution begins and ends there.
+
 //Turns the DEFINE_GUID for EventTraceGuid into a const.
 #define INITGUID
 
@@ -6,7 +7,7 @@
 #include "DnsSensor.h"
 #include "Logger.h"
 
-BOOL g_Run = TRUE;
+bool g_Run = true;
 Logger g_systemLog;
 
 void SignalHandler(int signal);
@@ -15,10 +16,10 @@ typedef void (*SignalHandlerPointer)(int);
 int wmain(void)
 {
     g_systemLog.addLoggerChannel(new ConsoleLoggerChannel());
-    g_systemLog.addLoggerChannel(new FileLoggerChannel("agentx.log"));
+    g_systemLog.addLoggerChannel(new FileLoggerChannel("app.log"));
     g_systemLog.setLogLevel(DBG);
 
-    g_systemLog.log(INF, "Starting Agentx Application");
+    g_systemLog.log(INF, "Starting etw-dns Application");
 
     Logger auditLog;
     auditLog.setLogLevel(ADT);
@@ -54,7 +55,7 @@ int wmain(void)
         wprintf(L"%s", sensor.getInfo().data());
     }
 
-    g_systemLog.log(INF, "Agentx stopped");
+    g_systemLog.log(INF, "etw-dns Application stopped");
     return 0;
 }
 
